@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="fi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#172d24"><meta name="description" content="Valmentajan ottelupäivä: kokoonpano, vaihdot ja peliminuutit yhdessä paikassa.">
+  <title>Kentällä — Valmentajan ottelupäivä</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/png" href="kentällä app icon.png">
+  <link rel="apple-touch-icon" href="kentällä app icon.png">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#ottelu" aria-label="Kentällä – ottelu"><img src="kentällä text.png" alt="Kentällä" width="180" height="60"></a>
+    <nav aria-label="Päänavigaatio">
+      <button class="nav-item active" data-tab="ottelu"><span data-icon="pitch"></span>Ottelu</button>
+      <button class="nav-item" data-tab="pelaajat"><span data-icon="users"></span>Pelaajat</button>
+      <button class="nav-item" data-tab="raportit"><span data-icon="chart"></span>Raportit</button>
+    </nav>
+    <button class="icon-btn" id="help-btn" aria-label="Ohjeet" title="Ohjeet" data-icon="help"></button>
+  </aside>
+  <div class="main-shell">
+    <div class="save-status" role="status" hidden></div>
+    <main id="main"></main>
+  </div>
+  <dialog id="dialog"><div id="dialog-content"></div></dialog>
+  <div id="toast" role="status"></div>
+  <script defer src="browser.js"></script>
+</body>
+</html>

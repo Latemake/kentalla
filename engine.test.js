@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { advance, suggestion, substitute, formations } from './engine.js';
+const fixture=()=>({duration:10,elapsed:0,running:true,interval:2,nextSub:120,roster:['a','b','c'],slots:[{pos:'MV',id:'a'},{pos:'H',id:'b'}],stats:{},events:[],fair:true,rotateKeeper:false});
+test('minutes accrue only on the field and stop exactly at full time',()=>{const m=fixture();advance(m,650);assert.equal(m.elapsed,600);assert.equal(m.stats.a.positions.MV,600);assert.equal(m.stats.b.total,600);assert.equal(m.stats.c,undefined);assert.equal(m.running,false);});
+test('substitutions preserve position minutes and reset the next reminder',()=>{const m=fixture();advance(m,120);assert.equal(substitute(m,'b','c'),true);advance(m,60);assert.equal(m.stats.b.total,120);assert.equal(m.stats.c.positions.H,60);assert.equal(m.nextSub,240);assert.equal(m.events[0].at,120);assert.equal(substitute(m,'c','a'),false);});
+test('fair rotation protects a fixed goalkeeper',()=>{const m=fixture();advance(m,120);assert.deepEqual(suggestion(m,m.roster.map(id=>({id,weight:1}))),{outId:'b',inId:'c',pos:'H'});});
+test('weighted rotation normalizes minutes by playing weight',()=>{const m=fixture();m.slots=[{id:'a',pos:'P'},{id:'b',pos:'H'}];m.fair=false;m.stats={a:{total:90},b:{total:120}};assert.equal(suggestion(m,[{id:'a',weight:.5},{id:'b',weight:2},{id:'c',weight:1}]).outId,'a');});
+test('empty bench cannot produce a substitution',()=>{const m=fixture();m.roster=['a','b'];assert.equal(suggestion(m,[{id:'a'},{id:'b'}]),null);});
+test('each formation contains the correct number of players and one keeper',()=>{for(const [mode,slots] of Object.entries(formations)){assert.equal(slots.length,Number(mode));assert.equal(slots.filter(p=>p==='MV').length,1);}});
