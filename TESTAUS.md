@@ -1,5 +1,11 @@
 # Kenttäkäytön simulointi, 6.9.2026
 
+## Kokoonpanopäivitys 26.9.2026
+
+218 laskentatestiä läpäisty. Uudet testit kattavat muodon siirtämisen ja palauttamisen, roolin vaihdoksen vaikutuksen vain tuleviin minuutteihin, muutoksen perumisen, tarkan paikkalukituksen, roolikohtaiset rajoitukset, sallittujen paikkojen perusteella muodostetun avauksen sekä rajoitettujen pelaajien kokonaisen ottelukierron. Vaihtoehdotusten sovitus siirtää tarvittaessa joustavan pelaajan toiseen sallittuun paikkaan, jotta se ei vie yhden paikan pelaajan ainoaa mahdollisuutta.
+
+Selaimen kosketustapahtumilla testattu tyhjän paikan veto, uuden pelaajan luonti suoraan paikkaan, kiertolukitus, sopimattoman pudotuksen esto, penkiltä kentälle tehty yksittäinen vaihto, roolin muuttaminen ja tallennuksen palautuminen. 390 × 844 -näkymässä testattu myös reunavieritys, jolla penkkipelaajan voi vetää takaisin näkyviin vierivälle kentälle. Vaihtohälytys testattu Kokoonpano-välilehdellä. Fyysisellä puhelimella tehtyä kenttätestiä tämä ei korvaa.
+
 ## Kokonaiset ottelut
 
 192 eri 60 minuutin ottelua: 5v5, 7v7, 8v8 ja 11v11; 0, 1, 2, 3, 5 tai 10 vaihtopelaajaa; 1–4 jaksoa; maalivahti kiinteänä tai kierrossa. Vaihtoväli oli viisi minuuttia ja kaikki ehdotetut ryhmävaihdot toteutettiin. Jaksotauoilla simuloitiin 15 minuutin odotus.

@@ -53,12 +53,76 @@ export function suggestions(match, players) {
   bench.sort((a,b) => score(a.id) - score(b.id));
   const outgoing = [...match.slots].filter(s => s.id && (s.pos !== 'MV' || match.rotateKeeper)).sort((a,b) => score(b.id) - score(a.id));
   const count = Math.min(bench.length, outgoing.length, Number(match.batchSize) || Infinity);
-  const result = [];
-  for (let i = 0; i < count; i++) {
-    if(!match.fair && score(bench[i].id)>=score(outgoing[i].id)-1e-7) break;
-    result.push({ inId: bench[i].id, outId: outgoing[i].id, pos: outgoing[i].pos });
+  const assigned=new Map();
+  function place(incoming,seen=new Set()) {
+    const options=outgoing.filter(slot=>canPlay(match,incoming.id,match.slots.indexOf(slot))&&(match.fair||score(incoming.id)<score(slot.id)-1e-7));
+    // Keep priority order, but reassign a flexible player if that frees the
+    // only compatible place for a player with a restricted rotation.
+    for(const slot of options.filter(s=>!assigned.has(s))) {if(!seen.has(slot)){assigned.set(slot,incoming);return true;}}
+    for(const slot of options) {
+      if(seen.has(slot))continue;seen.add(slot);
+      if(place(assigned.get(slot),seen)){assigned.set(slot,incoming);return true;}
+    }
+    return false;
   }
-  return result;
+  for(const incoming of bench){if(assigned.size>=count)break;place(incoming);}
+  return outgoing.filter(slot=>assigned.has(slot)).map(slot=>({inId:assigned.get(slot).id,outId:slot.id,pos:slot.pos}));
+}
+export function canPlay(match,id,index,rules=match.rotationRules) {
+  const slot=match.slots[index],rule=rules?.[id];
+  return !!slot&&(!rule?.roles||rule.roles.includes(slot.pos))&&(!rule?.slots||rule.slots.includes(index));
+}
+export function initialLineup(mode,roster,rules={},template=null) {
+  const match={slots:template?template.map(slot=>({...slot,id:null})):formations[mode].map(pos=>({pos,id:null})),rotationRules:rules};
+  function place(id,seen=new Set()) {
+    const options=match.slots.map((s,i)=>i).filter(i=>canPlay(match,id,i)&&!seen.has(i));
+    for(const i of options)if(!match.slots[i].id){match.slots[i].id=id;return true;}
+    for(const i of options){seen.add(i);if(place(match.slots[i].id,seen)){match.slots[i].id=id;return true;}}
+    return false;
+  }
+  for(const id of roster){if(match.slots.every(s=>s.id))break;place(id);}
+  return match.slots;
+}
+export function slotCoordinates(match,index) {
+  const slot=match.slots[index];
+  if(Number.isFinite(slot.x)&&Number.isFinite(slot.y))return {x:slot.x,y:slot.y};
+  const rows=[...new Set(formations[match.mode]||match.slots.map(s=>s.pos))].reverse();
+  const group=match.slots.map((s,i)=>({...s,index:i})).filter(s=>s.pos===slot.pos);
+  return {x:(group.findIndex(s=>s.index===index)+1)*100/(group.length+1),y:16+Math.max(0,rows.indexOf(slot.pos))*68/Math.max(1,rows.length-1)};
+}
+export function moveSlot(match,index,x,y) {
+  if(match.finished||!match.slots[index]||!Number.isFinite(x)||!Number.isFinite(y))return false;
+  x=Math.max(8,Math.min(92,x));y=Math.max(10,Math.min(90,y));
+  if(match.slots.some((s,i)=>i!==index&&Math.hypot(slotCoordinates(match,i).x-x,slotCoordinates(match,i).y-y)<10))return false;
+  checkpoint(match);Object.assign(match.slots[index],{x,y});return true;
+}
+export function setSlotRole(match,index,pos) {
+  const slot=match.slots[index];
+  if(match.finished||!slot||!['MV','P','KH','H'].includes(pos)||slot.pos===pos)return false;
+  if(slot.id&&match.rotationRules?.[slot.id]?.roles&&!match.rotationRules[slot.id].roles.includes(pos))return false;
+  checkpoint(match);
+  // Freeze all coordinates before changing role so no other player moves.
+  const coordinates=match.slots.map((s,i)=>slotCoordinates(match,i));
+  match.slots.forEach((s,i)=>Object.assign(s,coordinates[i]));
+  const previous=slot.pos;slot.pos=pos;
+  recordEvent(match,{at:match.elapsed,type:'role',inId:slot.id,pos,previous});return true;
+}
+export function resetLayout(match) {
+  if(match.finished)return false;checkpoint(match);
+  match.slots.forEach(slot=>{delete slot.x;delete slot.y;});return true;
+}
+export function configureSlot(match,index,{id,pos,x,y}) {
+  if(match.finished||!match.slots[index]||!['MV','P','KH','H'].includes(pos))return false;
+  const draft=JSON.parse(JSON.stringify(match)),oldPos=draft.slots[index].pos;
+  draft.slots.forEach((slot,i)=>Object.assign(slot,slotCoordinates(match,i)));
+  draft.slots[index].pos=pos;
+  if(id!==draft.slots[index].id&&!assignPosition(draft,index,id))return false;
+  if(id&&!canPlay(draft,id,index))return false;
+  const coords=slotCoordinates(draft,index);
+  if((x!==coords.x||y!==coords.y)&&!moveSlot(draft,index,x,y))return false;
+  if(oldPos!==pos)recordEvent(draft,{at:match.elapsed,type:'role',inId:id,pos,previous:oldPos});
+  checkpoint(match);const undo=match.undo;
+  Object.assign(match,draft,{undo});return true;
 }
 export function suggestion(match, players) { return suggestions(match, players)[0] || null; }
 function checkpoint(match) {
@@ -71,7 +135,7 @@ export function substituteMany(match, changes) {
   if (match.finished || !Array.isArray(changes) || !changes.length) return false;
   const outs = changes.map(c => c.outId), ins = changes.map(c => c.inId);
   if (new Set(outs).size !== outs.length || new Set(ins).size !== ins.length) return false;
-  if (changes.some(c => !c.outId || !match.slots.some(s => s.id === c.outId) || !match.roster.includes(c.inId) || match.slots.some(s => s.id === c.inId) || (match.unavailable || []).includes(c.inId))) return false;
+  if (changes.some(c => !c.outId || !match.slots.some(s => s.id === c.outId) || !match.roster.includes(c.inId) || match.slots.some(s => s.id === c.inId) || (match.unavailable || []).includes(c.inId) || !canPlay(match,c.inId,match.slots.findIndex(s=>s.id===c.outId)))) return false;
   checkpoint(match);
   for (const {outId, inId} of changes) {
     const slot = match.slots.find(s => s.id === outId);
@@ -87,6 +151,7 @@ export function assignPosition(match, index, id) {
   const slot = match.slots[index];
   if (match.finished || !slot || slot.id === id || !match.roster.includes(id) || (match.unavailable || []).includes(id)) return false;
   const other = match.slots.find(s => s.id === id);
+  if(!canPlay(match,id,index)||(other&&slot.id&&!canPlay(match,slot.id,match.slots.indexOf(other))))return false;
   if (!other && slot.id) return substitute(match, slot.id, id);
   checkpoint(match);
   const old = slot.id;
